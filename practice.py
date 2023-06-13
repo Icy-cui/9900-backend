@@ -5,10 +5,9 @@ app = Flask(__name__)
 api = Api(app)
 
 @api.route('/hello')
-class HelloWorld(Resource):
+class Hello(Resource):
     def get(self):
-        return {'message': 'Hello, World!'}
+        return {'msg': 'hello'}
 
 if __name__ == '__main__':
-    app.run()
-
+    app.run(debug=True)
