@@ -1,5 +1,4 @@
 import json
-
 from flask import Flask, request, make_response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine, DateTime, func
@@ -18,6 +17,7 @@ CORS(app, supports_credentials=True)
 
 # namespace
 user_ns = api.namespace('User_account', path='/user', description='user login /register')
+movie_ns = api.namespace('Movie_info', path='/movie', description='Movie information details')
 
 
 class User(db.Model):
@@ -29,11 +29,11 @@ class User(db.Model):
     - description
     """
     __tablename__ = 'user'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    email = db.Column(db.String(50), nullable=False, unique=True)
+    id = db.Column(db.Integer, autoincrement=True)
+    email = db.Column(db.String(50), primary_key=True, nullable=False, unique=True)
     name = db.Column(db.String(50), nullable=False)
     password = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.String(250), nullable=False)
+    description = db.Column(db.String(250), nullable=True)
 
 
 class Movie(db.Model):
@@ -47,6 +47,7 @@ class Movie(db.Model):
     year = db.Column(db.String(50), nullable=False)
     description = db.Column(db.String(250), nullable=True)
 
+
 class LinkedMovie(db.Model):
     __tablename__ = 'linkedMovie'
     link_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -54,37 +55,57 @@ class LinkedMovie(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     is_valid = db.Column(db.Integer, default=1)
 
+
 @user_ns.route('/register')
 class Register(Resource):
-    @user_ns.response(409, str({'message': 'Register fail: password confirmation error'}))
-    @user_ns.response(400, str({'message': 'Register fail: the format of email error'}))
-    @user_ns.response(201, str({'status': 'ok', 'message': 'success'}))
-    @user_ns.response(200, str({'message': 'account already exists'}))
+    @user_ns.response(409, str({"message": 'password confirmation error'}))
+    @user_ns.response(400, str({"message": 'fail: format error'}))
+    @user_ns.response(405, str({"message": 'No auth'}))
+    @user_ns.response(201, str({"message": 'success'}))
     @api.param('name', 'user name')
-    @api.param('email', 'the email of user')
-    @api.param('password1', 'the password of user')
-    @api.param('password2', 'the confirm password of user')
+    @api.param('email', 'user email')
+    @api.param('password', 'user password')
+    @api.param('description', 'the description of user')
     def post(self):
-        # Get parameters
-        # content = request.get_json()
-        # name = content["name"]
-        # email = content["email"]
-        # pwd1 = content["password1"]
-        # pwd2 = content["password2"]
-
-        new_account = User(name='user1', email='user11@gmail.com', password='122344')
+        content = request.get_json()
+        username = content['name']
+        email = content['email']
+        password = content['password']
+        # print(content)
+        new_account = User(name=username, email=email, password=password, description='')
         db.session.add(new_account)
         db.session.commit()
         resp = make_response({
-            "status": "ok",
-            "message": "success"
+            "status": 'ok',
+            "message": 'register success'
         })
-        all_data = User.query.all()
-        for data in all_data:
-            print(data.name, data.email)
         return resp
-    def delete(self):
-        return 'ok'
+
+
+@movie_ns.route('/getData')
+class MovieInfo(Resource):
+    @movie_ns.response(200, str({"message": "success"}))
+    @api.param("title", "movie title/name")
+    def get(self):
+        keyword = request.args.get('title')
+        # request.get_json()
+        # print(keyword)
+        movie_detail = Movie.query.filter(Movie.title == keyword, Movie.movie_id == 7).first()
+        # print(movie_detail)
+        if movie_detail:
+            resp = make_response({
+                "movie_id": movie_detail.movie_id,
+                "title": movie_detail.title,
+                "director": movie_detail.director,
+                "writer": movie_detail.writer
+            })
+        else:
+            resp = {
+                "message": "no such movie / movie not in our database"
+            }
+        return resp
+
+
 @app.route('/init')
 def init_database():
     db.create_all()
@@ -104,12 +125,12 @@ def add_movies():
     f.close()
     for movie in data['movies']:
         new_movie = Movie(movie_id=movie['movie_id'], title=movie['title'], img_link=movie['img_link'],
-                          director=movie['director'],
-                          writer=movie['writer'], genre=movie['genre'], year=movie['year'],
-                          description=movie['description'])
+                          director=movie['director'], writer=movie['writer'], genre=movie['genre'],
+                          year=movie['year'], description=movie['description'])
         db.session.add(new_movie)
         db.session.commit()
     return 'ok'
+
 
 if __name__ == '__main__':
     app.run(debug=True)
